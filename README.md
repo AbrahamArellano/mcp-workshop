@@ -44,13 +44,53 @@ cd lab02-retail-mcp-servers
 cd lab03-aws-cloud-deployment
 ```
 
-# Be sure to read the README in each lab directory
-```bash
-cat README.md
-```
+## Authentication Requirements
+
+Starting with Lab 03, the MCP servers require JWT bearer token authentication. This security feature ensures that only authorized clients can access your MCP services. Make sure to:
+
+1. Configure your JWT token in the authentication settings
+2. Set up proper authorization headers in your clients
+3. Include proper token validation in your server implementations
+
+## Protocol Support
+
+This workshop uses the latest MCP protocol implementation including:
+
+- **Streamable HTTP Transport**: The modern alternative to Server-Sent Events (SSE), offering improved performance and reliability for real-time communication
+- **Bidirectional Streaming**: Supports both client-to-server and server-to-client streaming capabilities
+- **Binary Data Support**: Handles both JSON and binary data formats
+
+## Deployment Automation
+
+The workshop includes GitHub Actions workflows for automating deployments:
+
+- **Deploy MCP Workshop Lab to AWS**: Deploys the entire lab infrastructure to AWS
+- **Update MCP Playground**: Updates only the MCP Playground container for faster iterations
+- **Destroy MCP Workshop AWS Resources**: Safely removes all created AWS resources
+
+These workflows enable you to focus on learning the MCP concepts without getting bogged down in deployment details.
+
+## Troubleshooting Common Issues
+
+### Authentication Errors
+
+If you see errors like `AttributeValue for a key attribute cannot contain an empty string value. Key: PK`, this typically indicates missing or invalid JWT authentication. Make sure you've:
+
+1. Set up a valid JWT token in the client configuration
+2. Properly formatted the Authorization header as `Bearer <token>`
+3. Included the token in all requests to authenticated endpoints
+
+### Conversation Flow Issues
+
+If conversations terminate prematurely when using tool calls, particularly in multi-step workflows:
+
+1. Enable debug logging for more visibility
+2. Check for proper error handling in tool call sequences
+3. Use the "Force Continue" option in the MCP Playground interface if needed
 
 ## Resources
 
 - [Model Context Protocol Specification](https://modelcontextprotocol.io)
 - [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk)
 - [Anthropic Claude Documentation](https://docs.anthropic.com/en/docs/agents-and-tools/mcp)
+- [StreamableHTTP Protocol Reference](https://modelcontextprotocol.io/reference/extensions/streaming)

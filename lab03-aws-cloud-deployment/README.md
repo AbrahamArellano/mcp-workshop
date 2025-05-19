@@ -12,6 +12,7 @@ By the end of this lab, you will:
 - Compare two different MCP client approaches: local (Claude Desktop) vs. cloud (Bedrock)
 - Use Terraform for infrastructure as code
 - Understand cloud architecture considerations for AI tool integration
+- Implement proper authentication for secure MCP communications
 
 ## Architecture Overview
 
@@ -58,6 +59,7 @@ graph TD
 - AWS Account with appropriate permissions
 - GitHub account (for GitHub Actions)
 - Claude Desktop installed and configured
+- JWT authentication token for accessing MCP servers
 
 ## Deployment Steps
 
@@ -112,10 +114,18 @@ Once deployment is complete, you'll need to update your Claude Desktop configura
    {
      "mcpServers": {
        "aws-product-server": {
-         "url": "https://your-api-id.execute-api.region.amazonaws.com/dev/product-server/mcp"
+         "url": "https://your-api-id.execute-api.region.amazonaws.com/dev/product-server/mcp",
+         "auth": {
+           "type": "jwt",
+           "token": "your-jwt-token-here"
+         }
        },
        "aws-order-server": {
-         "url": "https://your-api-id.execute-api.region.amazonaws.com/dev/order-server/mcp"
+         "url": "https://your-api-id.execute-api.region.amazonaws.com/dev/order-server/mcp",
+         "auth": {
+           "type": "jwt",
+           "token": "your-jwt-token-here"
+         }
        }
      }
    }
@@ -135,6 +145,30 @@ After adding your servers to Claude Desktop:
    - "Search for all products under $200"
    - "Create an order for 2 units of product p002"
    - "Check the status of my orders"
+
+## Authentication Requirements
+
+The MCP servers in this lab require JWT bearer token authentication to access their APIs. This is a security measure that ensures only authorized clients can make requests.
+
+### JWT Token Format
+
+The JWT token should be provided in the Authorization header using the Bearer scheme:
+
+```
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+### Configuring Authentication
+
+#### In Claude Desktop
+Use the configuration format shown above, which includes the `auth` section with JWT token.
+
+#### In MCP Playground
+The MCP Playground UI includes an authentication settings section in the sidebar where you can enter your JWT token. This token will be used for all requests to MCP servers.
+
+### Authentication Errors
+
+If you see errors like `AttributeValue for a key attribute cannot contain an empty string value. Key: PK`, this typically indicates missing or invalid JWT token. Ensure you're providing a valid token in the proper format.
 
 ## Debugging with MCP Inspector
 
@@ -156,7 +190,8 @@ The inspector will be available at http://127.0.0.1:6274 in your browser.
 
 1. Enter your MCP server URL (e.g., https://your-product-alb-endpoint.region.elb.amazonaws.com/mcp)
 2. Select the appropriate transport type (Streamable HTTP)
-3. Click "Connect"
+3. Add your JWT token in the Authorization header field
+4. Click "Connect"
 
 The inspector will discover available tools on your MCP server and allow you to test them directly.
 
@@ -181,6 +216,27 @@ Here's what the MCP Inspector looks like when successfully connected to an MCP s
 - Check CloudWatch logs for detailed request information
 - Compare successful requests from the MCP Inspector with requests from Claude or other MCP playgrounds
 - Verify network connectivity and security group rules allow traffic to your MCP servers
+- Ensure your JWT token is valid and properly formatted in requests
+
+## Common Issues and Solutions
+
+### Conversation Flow Problems
+
+If your conversations terminate prematurely when using tool calls:
+
+1. **Authentication Errors**: Ensure your JWT token is valid and included in all requests
+2. **Multi-step Workflows**: The MCP Playground includes recovery options for multi-step workflows:
+   - Use the "Force Continue" button if the conversation gets stuck
+   - Check for clear error messages in the interface
+   - Look for error details in the logs
+
+### Async Communication Issues
+
+If you see errors like `Task was destroyed but it is pending!` in logs:
+
+1. This indicates issues with the async handling in the StreamableHTTP protocol
+2. The MCP Playground has been updated to properly manage async resources
+3. Ensure you're using the latest version of the MCP Playground container
 
 ## Implementation Details
 
@@ -192,32 +248,33 @@ In this lab, we take the same Product and Order MCP servers from Lab 02 and depl
 2. **Serverless Architecture**: Deployed as Lambda functions for automatic scaling and pay-per-use pricing
 3. **Stateless Design**: Each request creates a new MCP server instance, ideal for serverless environments
 4. **API Gateway Integration**: Secure HTTPS endpoints with CORS support
+5. **Authentication**: JWT token validation for secure access
 
 ### Dual Client Architecture
 
 This lab demonstrates two different ways to interact with your MCP servers:
 
-#### Option 1: Claude Desktop (Local Client)
+#### Option a: Claude Desktop (Local Client)
 
 - Run Claude Desktop on your local machine
 - Configure it to connect directly to your cloud-hosted MCP servers
 - Ideal for development and testing with direct control over the client
 
-#### Option 2: Bedrock-based MCP Playground (Cloud Client)
+#### Option b: Bedrock-based MCP Playground (Cloud Client)
 
 - A containerized web application running on ECS/Fargate
 - Connects to Amazon Bedrock (using Claude 3 Haiku model)
 - Forwards tool requests to your MCP servers
 - Demonstrates a fully cloud-based AI assistant with MCP integration
 
-### Why Two Client Options?
+### Protocol Implementation
 
-This dual-client approach allows you to:
+This lab uses the StreamableHTTP transport protocol, which offers several advantages over the older SSE approach:
 
-1. **Compare Implementation Approaches**: Local vs. cloud-based clients
-2. **Understand Different Integration Patterns**: Direct connection vs. proxy architecture
-3. **Experience Different User Interfaces**: Claude Desktop vs. web-based interface
-4. **Explore Cloud Provider Options**: Anthropic Claude Desktop vs. Amazon Bedrock
+- **Bidirectional Communication**: Allows both client-to-server and server-to-client streaming
+- **Enhanced Performance**: More efficient handling of large responses
+- **Better Resource Management**: Improved lifecycle handling of connections
+- **Standard Headers**: Uses standard HTTP headers for authentication
 
 ### Infrastructure Components
 
@@ -247,9 +304,22 @@ The Terraform configuration follows a component-based organization pattern, whic
 
 This organization makes it easier to understand the relationships between resources within each component and simplifies maintenance as the infrastructure grows.
 
-### Security Note
+## Updating the MCP Playground
 
-This lab implements basic security with HTTPS through API Gateway but does not include authentication or authorization. For production environments, you should implement proper authentication, authorization, and API key management.
+The MCP Playground container can be updated independently of the infrastructure using a dedicated GitHub Actions workflow:
+
+1. Make changes to the code in `lab03-aws-cloud-deployment/src/mcp-playground/`
+2. Go to the "Actions" tab in your GitHub repository
+3. Select the "Update MCP Playground Container" workflow
+4. Click "Run workflow"
+5. Select your AWS region from the dropdown
+6. Click "Run workflow" again
+
+This will:
+- Build a new Docker image with your changes
+- Push it to the ECR repository
+- Update the ECS service to use the new image
+- No other infrastructure components will be modified
 
 ## Cleanup
 
@@ -270,7 +340,7 @@ To avoid ongoing AWS charges, clean up your resources when you're done:
 - Lambda provides scalable, cost-effective compute with pay-per-use pricing
 - API Gateway ensures secure communication between Claude and your tools
 - The same pattern works for any AI service that supports the MCP standard
-- For production, you would add authentication, monitoring, and alerting
+- For production, you would expand on authentication, monitoring, and alerting
 
 ## Trying Both Client Options
 
@@ -286,7 +356,7 @@ After deploying the infrastructure:
 ### Using Bedrock-based MCP Playground (Cloud Client)
 
 1. Access the Bedrock client web interface using the URL provided in the deployment output
-2. The interface is pre-configured to connect to your MCP servers
+2. Enter your JWT authentication token in the sidebar settings
 3. Try the same commands as above to see how the cloud-based client handles the requests
 4. Notice how the Bedrock client acts as a proxy between Amazon Bedrock and your MCP servers
 
